@@ -99,16 +99,15 @@ if uploaded_file is not None:
     background_percentage = 100 - weedy_percentage
 
     st.subheader("AI Segmentation Results")
-
     col1, col2, col3 = st.columns(3)
 
     with col1:
         st.image(image, caption="Original Image")
 
-   with col2:
-    mask_display = (mask_array * 255).astype(np.uint8)
-    st.image(mask_display, caption="AI Prediction")
-       
+    with col2:
+        mask_display = (mask_array * 255).astype(np.uint8)
+        st.image(mask_display, caption="AI Prediction")
+
     with col3:
         st.image(overlay, caption="Segmentation Overlay")
 
