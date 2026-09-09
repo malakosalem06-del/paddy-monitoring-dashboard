@@ -105,9 +105,10 @@ if uploaded_file is not None:
     with col1:
         st.image(image, caption="Original Image")
 
-    with col2:
-mask_display = (mask_array * 255).astype(np.uint8)
-st.image(mask_display, caption="AI Prediction")
+   with col2:
+    mask_display = (mask_array * 255).astype(np.uint8)
+    st.image(mask_display, caption="AI Prediction")
+       
     with col3:
         st.image(overlay, caption="Segmentation Overlay")
 
