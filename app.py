@@ -8,6 +8,24 @@ st.set_page_config(
 
 st.title("🌾 AI-Driven Paddy Field Monitoring")
 st.write("Upload a UAV image to analyze paddy field vegetation.")
+st.subheader("Model Performance")
+
+col1, col2, col3, col4, col5 = st.columns(5)
+
+with col1:
+    st.metric("IoU", "64.46%")
+
+with col2:
+    st.metric("Dice Score", "76.49%")
+
+with col3:
+    st.metric("Precision", "77.16%")
+
+with col4:
+    st.metric("Recall", "75.99%")
+
+with col5:
+    st.metric("Pixel Accuracy", "86.58%")
 
 import torch
 import torch.nn as nn
