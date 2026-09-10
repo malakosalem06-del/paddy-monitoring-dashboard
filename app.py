@@ -1,7 +1,9 @@
+import os
 import streamlit as st
 import torch
 import torch.nn as nn
-from torchvision.models import mobilenet_v2, MobileNet_V2_Weights
+import torch.nn.functional as F
+from torchvision.models import mobilenet_v2
 from torchvision import transforms
 from PIL import Image
 import numpy as np
@@ -14,33 +16,24 @@ st.set_page_config(
 
 
 st.title("AI-Driven Paddy Field Monitoring")
-
-st.write(
-    "AI-based semantic segmentation of paddy, weeds, and background."
-)
+st.write("AI-based semantic segmentation of paddy, weeds, and background.")
 
 
 st.subheader("Model Performance")
 
-
 col1, col2, col3, col4, col5 = st.columns(5)
-
 
 with col1:
     st.metric("Paddy IoU", "53.96%")
 
-
 with col2:
     st.metric("Weed IoU", "58.69%")
-
 
 with col3:
     st.metric("Background IoU", "89.01%")
 
-
 with col4:
     st.metric("Pixel Accuracy", "89.85%")
-
 
 with col5:
     st.metric("Paddy Recall", "86.90%")
@@ -49,90 +42,51 @@ with col5:
 class MobileNetV2UNet(nn.Module):
 
     def __init__(self):
-
         super().__init__()
 
-        backbone = mobilenet_v2(
-            weights=MobileNet_V2_Weights.DEFAULT
-        )
+        backbone = mobilenet_v2(weights=None)
 
         self.encoder = backbone.features
 
-
         self.up1 = nn.ConvTranspose2d(
-            1280,
-            320,
-            2,
-            stride=2
+            1280, 320, 2, stride=2
         )
 
         self.conv1 = nn.Conv2d(
-            384,
-            320,
-            3,
-            padding=1
+            384, 320, 3, padding=1
         )
 
-
         self.up2 = nn.ConvTranspose2d(
-            320,
-            64,
-            2,
-            stride=2
+            320, 64, 2, stride=2
         )
 
         self.conv2 = nn.Conv2d(
-            96,
-            64,
-            3,
-            padding=1
+            96, 64, 3, padding=1
         )
 
-
         self.up3 = nn.ConvTranspose2d(
-            64,
-            32,
-            2,
-            stride=2
+            64, 32, 2, stride=2
         )
 
         self.conv3 = nn.Conv2d(
-            56,
-            32,
-            3,
-            padding=1
+            56, 32, 3, padding=1
         )
 
-
         self.up4 = nn.ConvTranspose2d(
-            32,
-            16,
-            2,
-            stride=2
+            32, 16, 2, stride=2
         )
 
         self.conv4 = nn.Conv2d(
-            40,
-            16,
-            3,
-            padding=1
+            40, 16, 3, padding=1
         )
-
 
         self.up5 = nn.ConvTranspose2d(
-            16,
-            16,
-            2,
-            stride=2
+            16, 16, 2, stride=2
         )
-
 
         self.final = nn.Conv2d(
-            16,
-            3,
-            1
+            16, 3, 1
         )
-
 
     def forward(self, x):
 
@@ -141,27 +95,25 @@ class MobileNetV2UNet(nn.Module):
         skip3 = None
         skip4 = None
 
-
         for i, layer in enumerate(self.encoder):
 
             x = layer(x)
 
-            if i == 3:
-                skip4 = x
-
-            elif i == 6:
-                skip3 = x
-
-            elif i == 10:
-                skip2 = x
-
-            elif i == 14:
+            if i == 7:
                 skip1 = x
 
+            elif i == 6:
+                skip2 = x
+
+            elif i == 3:
+                skip3 = x
+
+            elif i == 2:
+                skip4 = x
 
         x = self.up1(x)
 
-        skip1 = torch.nn.functional.interpolate(
+        skip1 = F.interpolate(
             skip1,
             size=x.shape[2:],
             mode="bilinear",
@@ -175,10 +127,9 @@ class MobileNetV2UNet(nn.Module):
 
         x = self.conv1(x)
 
-
         x = self.up2(x)
 
-        skip2 = torch.nn.functional.interpolate(
+        skip2 = F.interpolate(
             skip2,
             size=x.shape[2:],
             mode="bilinear",
@@ -192,10 +143,9 @@ class MobileNetV2UNet(nn.Module):
 
         x = self.conv2(x)
 
-
         x = self.up3(x)
 
-        skip3 = torch.nn.functional.interpolate(
+        skip3 = F.interpolate(
             skip3,
             size=x.shape[2:],
             mode="bilinear",
@@ -209,10 +159,9 @@ class MobileNetV2UNet(nn.Module):
 
         x = self.conv3(x)
 
-
         x = self.up4(x)
 
-        skip4 = torch.nn.functional.interpolate(
+        skip4 = F.interpolate(
             skip4,
             size=x.shape[2:],
             mode="bilinear",
@@ -226,11 +175,9 @@ class MobileNetV2UNet(nn.Module):
 
         x = self.conv4(x)
 
-
         x = self.up5(x)
 
         x = self.final(x)
-
 
         return x
 
@@ -240,52 +187,33 @@ device = torch.device(
 )
 
 
-@st.cache_resource
-def load_model():
+model = MobileNetV2UNet().to(device)
 
-    model = MobileNetV2UNet().to(device)
 
+model_path = "best_mobilenetv2_unet_improved_3class.pth"
+
+
+try:
+
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(
+            f"Model file not found: {model_path}"
+        )
 
     checkpoint = torch.load(
-        "best_mobilenetv2_unet_improved_3class.pth",
-        map_location=device,
-        weights_only=False
+        model_path,
+        map_location=device
     )
 
-
-    if isinstance(checkpoint, dict):
-
-        if "state_dict" in checkpoint:
-
-            checkpoint = checkpoint["state_dict"]
-
-        elif "model_state_dict" in checkpoint:
-
-            checkpoint = checkpoint["model_state_dict"]
-
-
-    if isinstance(checkpoint, dict):
-
-        checkpoint = {
-            key.replace("module.", "", 1): value
-            for key, value in checkpoint.items()
-        }
-
+    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        checkpoint = checkpoint["state_dict"]
 
     model.load_state_dict(
         checkpoint,
         strict=True
     )
 
-
     model.eval()
-
-    return model
-
-
-try:
-
-    model = load_model()
 
     st.success(
         "AI segmentation model loaded successfully."
@@ -297,12 +225,12 @@ except Exception as e:
         "The AI model could not be loaded."
     )
 
-    st.code(
-        str(e)
-    )
+    st.code(str(e))
 
     st.stop()
 
+
+st.subheader("Upload Image")
 
 uploaded_file = st.file_uploader(
     "Upload a paddy field image",
@@ -315,15 +243,6 @@ if uploaded_file is not None:
     image = Image.open(
         uploaded_file
     ).convert("RGB")
-
-
-    st.subheader("Uploaded Image")
-
-
-    st.image(
-        image,
-        use_container_width=True
-    )
 
 
     input_image = image.resize(
@@ -346,7 +265,6 @@ if uploaded_file is not None:
         output = model(
             image_tensor
         )
-
 
         prediction = torch.argmax(
             output,
@@ -392,11 +310,9 @@ if uploaded_file is not None:
         paddy_mask.mean() * 100
     )
 
-
     background_percentage = (
         background_mask.mean() * 100
     )
-
 
     weed_percentage = (
         weed_mask.mean() * 100
@@ -419,13 +335,11 @@ if uploaded_file is not None:
         0
     ]
 
-
     segmentation[background_mask] = [
         0,
         0,
         0
     ]
-
 
     segmentation[weed_mask] = [
         255,
@@ -528,19 +442,13 @@ if uploaded_file is not None:
 
     st.write(
         f"""
-        The AI model classified the uploaded image
-        into three classes: Paddy, Weed, and Background.
+The AI model classified the uploaded image into three
+classes: Paddy, Weed, and Background.
 
-        **Paddy:** {paddy_percentage:.2f}%
+Paddy: {paddy_percentage:.2f}%
 
-        **Weed:** {weed_percentage:.2f}%
+Weed: {weed_percentage:.2f}%
 
-        **Background:** {background_percentage:.2f}%
-        """
-    )
-
-
-    st.info(
-        "The percentages represent the proportion of pixels "
-        "classified into each segmentation class."
+Background: {background_percentage:.2f}%
+"""
     )
