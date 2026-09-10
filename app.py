@@ -67,7 +67,7 @@ class MobileNetV2UNet(nn.Module):
         )
 
         self.conv1 = nn.Conv2d(
-            320 + 160,
+            384,
             320,
             3,
             padding=1
@@ -82,7 +82,7 @@ class MobileNetV2UNet(nn.Module):
         )
 
         self.conv2 = nn.Conv2d(
-            64 + 64,
+            96,
             64,
             3,
             padding=1
@@ -97,7 +97,7 @@ class MobileNetV2UNet(nn.Module):
         )
 
         self.conv3 = nn.Conv2d(
-            32 + 32,
+            56,
             32,
             3,
             padding=1
@@ -112,7 +112,7 @@ class MobileNetV2UNet(nn.Module):
         )
 
         self.conv4 = nn.Conv2d(
-            16 + 24,
+            40,
             16,
             3,
             padding=1
@@ -146,28 +146,27 @@ class MobileNetV2UNet(nn.Module):
 
             x = layer(x)
 
-
             if i == 3:
-
                 skip4 = x
 
-
             elif i == 6:
-
                 skip3 = x
 
-
             elif i == 10:
-
                 skip2 = x
 
-
             elif i == 14:
-
                 skip1 = x
 
 
         x = self.up1(x)
+
+        skip1 = torch.nn.functional.interpolate(
+            skip1,
+            size=x.shape[2:],
+            mode="bilinear",
+            align_corners=False
+        )
 
         x = torch.cat(
             [x, skip1],
@@ -179,6 +178,13 @@ class MobileNetV2UNet(nn.Module):
 
         x = self.up2(x)
 
+        skip2 = torch.nn.functional.interpolate(
+            skip2,
+            size=x.shape[2:],
+            mode="bilinear",
+            align_corners=False
+        )
+
         x = torch.cat(
             [x, skip2],
             dim=1
@@ -189,6 +195,13 @@ class MobileNetV2UNet(nn.Module):
 
         x = self.up3(x)
 
+        skip3 = torch.nn.functional.interpolate(
+            skip3,
+            size=x.shape[2:],
+            mode="bilinear",
+            align_corners=False
+        )
+
         x = torch.cat(
             [x, skip3],
             dim=1
@@ -198,6 +211,13 @@ class MobileNetV2UNet(nn.Module):
 
 
         x = self.up4(x)
+
+        skip4 = torch.nn.functional.interpolate(
+            skip4,
+            size=x.shape[2:],
+            mode="bilinear",
+            align_corners=False
+        )
 
         x = torch.cat(
             [x, skip4],
@@ -226,13 +246,8 @@ def load_model():
     model = MobileNetV2UNet().to(device)
 
 
-    checkpoint_path = (
-        "best_mobilenetv2_unet_improved_3class.pth"
-    )
-
-
     checkpoint = torch.load(
-        checkpoint_path,
+        "best_mobilenetv2_unet_improved_3class.pth",
         map_location=device,
         weights_only=False
     )
@@ -265,7 +280,6 @@ def load_model():
 
     model.eval()
 
-
     return model
 
 
@@ -276,7 +290,6 @@ try:
     st.success(
         "AI segmentation model loaded successfully."
     )
-
 
 except Exception as e:
 
@@ -430,16 +443,14 @@ if uploaded_file is not None:
     overlay[paddy_mask] = (
         alpha * segmentation[paddy_mask]
         +
-        (1 - alpha)
-        * overlay[paddy_mask]
+        (1 - alpha) * overlay[paddy_mask]
     ).astype(np.uint8)
 
 
     overlay[weed_mask] = (
         alpha * segmentation[weed_mask]
         +
-        (1 - alpha)
-        * overlay[weed_mask]
+        (1 - alpha) * overlay[weed_mask]
     ).astype(np.uint8)
 
 
@@ -530,6 +541,6 @@ if uploaded_file is not None:
 
 
     st.info(
-        "The percentages represent the proportion of "
-        "pixels classified into each segmentation class."
+        "The percentages represent the proportion of pixels "
+        "classified into each segmentation class."
     )
