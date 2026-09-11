@@ -8,16 +8,13 @@ from torchvision import transforms
 from PIL import Image
 import numpy as np
 
-
 st.set_page_config(
     page_title="Paddy Field Monitoring",
     layout="wide"
 )
 
-
 st.title("AI-Driven Paddy Field Monitoring")
 st.write("AI-based semantic segmentation of paddy, weeds, and background.")
-
 
 st.subheader("Model Performance")
 
@@ -186,16 +183,14 @@ device = torch.device(
     "cuda" if torch.cuda.is_available() else "cpu"
 )
 
-
 model = MobileNetV2UNet().to(device)
 
-
 model_path = "best_mobilenetv2_unet_improved_3class.pth"
-
 
 try:
 
     if not os.path.exists(model_path):
+
         raise FileNotFoundError(
             f"Model file not found: {model_path}"
         )
@@ -206,6 +201,7 @@ try:
     )
 
     if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+
         checkpoint = checkpoint["state_dict"]
 
     model.load_state_dict(
@@ -230,11 +226,32 @@ except Exception as e:
     st.stop()
 
 
+st.subheader("Field Scale")
+
+st.write(
+    "Enter the Ground Sampling Distance (GSD) "
+    "of the uploaded image."
+)
+
+gsd_cm = st.number_input(
+    "GSD (cm per pixel)",
+    min_value=0.001,
+    value=1.0,
+    step=0.1
+)
+
+gsd_m = gsd_cm / 100
+
+
 st.subheader("Upload Image")
 
 uploaded_file = st.file_uploader(
     "Upload a paddy field image",
-    type=["jpg", "jpeg", "png"]
+    type=[
+        "jpg",
+        "jpeg",
+        "png"
+    ]
 )
 
 
@@ -244,16 +261,13 @@ if uploaded_file is not None:
         uploaded_file
     ).convert("RGB")
 
-
     input_image = image.resize(
         (256, 256)
     )
 
-
     image_tensor = transforms.ToTensor()(
         input_image
     )
-
 
     image_tensor = image_tensor.unsqueeze(
         0
@@ -272,12 +286,7 @@ if uploaded_file is not None:
         )
 
 
-    pred_mask = (
-        prediction
-        .squeeze()
-        .cpu()
-        .numpy()
-    )
+    pred_mask = prediction.squeeze().cpu().numpy()
 
 
     mask_resized = Image.fromarray(
@@ -306,16 +315,55 @@ if uploaded_file is not None:
     )
 
 
-    paddy_percentage = (
-        paddy_mask.mean() * 100
+    total_pixels = mask_array.size
+
+    paddy_pixels = np.sum(
+        paddy_mask
     )
 
-    background_percentage = (
-        background_mask.mean() * 100
+    weed_pixels = np.sum(
+        weed_mask
     )
+
+    background_pixels = np.sum(
+        background_mask
+    )
+
+
+    paddy_percentage = (
+        paddy_pixels /
+        total_pixels
+    ) * 100
 
     weed_percentage = (
-        weed_mask.mean() * 100
+        weed_pixels /
+        total_pixels
+    ) * 100
+
+    background_percentage = (
+        background_pixels /
+        total_pixels
+    ) * 100
+
+
+    pixel_area_m2 = (
+        gsd_m ** 2
+    )
+
+
+    paddy_area_m2 = (
+        paddy_pixels *
+        pixel_area_m2
+    )
+
+    weed_area_m2 = (
+        weed_pixels *
+        pixel_area_m2
+    )
+
+    background_area_m2 = (
+        background_pixels *
+        pixel_area_m2
     )
 
 
@@ -350,21 +398,24 @@ if uploaded_file is not None:
 
     overlay = original_array.copy()
 
-
     alpha = 0.45
 
 
     overlay[paddy_mask] = (
-        alpha * segmentation[paddy_mask]
+        alpha *
+        segmentation[paddy_mask]
         +
-        (1 - alpha) * overlay[paddy_mask]
+        (1 - alpha) *
+        overlay[paddy_mask]
     ).astype(np.uint8)
 
 
     overlay[weed_mask] = (
-        alpha * segmentation[weed_mask]
+        alpha *
+        segmentation[weed_mask]
         +
-        (1 - alpha) * overlay[weed_mask]
+        (1 - alpha) *
+        overlay[weed_mask]
     ).astype(np.uint8)
 
 
@@ -414,7 +465,7 @@ if uploaded_file is not None:
     with col1:
 
         st.metric(
-            "Paddy Area",
+            "Paddy Percentage",
             f"{paddy_percentage:.2f}%"
         )
 
@@ -422,7 +473,7 @@ if uploaded_file is not None:
     with col2:
 
         st.metric(
-            "Weed Area",
+            "Weed Percentage",
             f"{weed_percentage:.2f}%"
         )
 
@@ -436,19 +487,88 @@ if uploaded_file is not None:
 
 
     st.subheader(
+        "Physical Area"
+    )
+
+
+    col1, col2, col3 = st.columns(3)
+
+
+    with col1:
+
+        st.metric(
+            "Paddy Area",
+            f"{paddy_area_m2:.4f} m²"
+        )
+
+
+    with col2:
+
+        st.metric(
+            "Weed Area",
+            f"{weed_area_m2:.4f} m²"
+        )
+
+
+    with col3:
+
+        st.metric(
+            "Background Area",
+            f"{background_area_m2:.4f} m²"
+        )
+
+
+    st.subheader(
+        "Pixel Information"
+    )
+
+
+    st.write(
+        f"Total pixels: {total_pixels:,}"
+    )
+
+    st.write(
+        f"Paddy pixels: {paddy_pixels:,}"
+    )
+
+    st.write(
+        f"Weed pixels: {weed_pixels:,}"
+    )
+
+    st.write(
+        f"Background pixels: {background_pixels:,}"
+    )
+
+    st.write(
+        f"GSD: {gsd_cm:.3f} cm/pixel"
+    )
+
+    st.write(
+        f"Area per pixel: {pixel_area_m2:.8f} m²"
+    )
+
+
+    st.subheader(
         "Segmentation Summary"
     )
 
 
     st.write(
         f"""
-The AI model classified the uploaded image into three
-classes: Paddy, Weed, and Background.
+The AI model classified the uploaded image
+into three classes: Paddy, Weed, and Background.
 
 Paddy: {paddy_percentage:.2f}%
 
 Weed: {weed_percentage:.2f}%
 
 Background: {background_percentage:.2f}%
+
+Estimated Paddy Area: {paddy_area_m2:.4f} m²
+
+Estimated Weed Area: {weed_area_m2:.4f} m²
+
+The physical area calculation is based on
+the GSD entered above.
 """
     )
