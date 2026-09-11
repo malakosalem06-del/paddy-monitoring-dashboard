@@ -11,17 +11,430 @@ import pandas as pd
 import xgboost as xgb
 from sklearn.model_selection import GroupKFold
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import matplotlib.pyplot as plt
 
+
+# ============================================================
+# PAGE CONFIGURATION
+# ============================================================
 
 st.set_page_config(
-    page_title="Paddy Field Monitoring",
-    layout="wide"
+    page_title="Paddy Field Monitoring & Yield Prediction",
+    page_icon="",
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
-st.title("AI-Driven Paddy Field Monitoring")
-st.write(
-    "AI-based semantic segmentation of paddy, weeds, and background "
-    "with crop yield estimation."
+
+# ============================================================
+# CUSTOM CSS
+# ============================================================
+
+st.markdown(
+    """
+    <style>
+
+    /* Main page */
+    .stApp {
+        background-color: #071923;
+        color: #f4f7f8;
+    }
+
+    .main .block-container {
+        max-width: 1500px;
+        padding-top: 1rem;
+        padding-bottom: 2rem;
+        padding-left: 2rem;
+        padding-right: 2rem;
+    }
+
+    /* Remove Streamlit top spacing */
+    header[data-testid="stHeader"] {
+        background: transparent;
+    }
+
+    /* Main title */
+    .main-title {
+        font-size: 34px;
+        font-weight: 700;
+        color: #ffffff;
+        margin-bottom: 2px;
+    }
+
+    .main-subtitle {
+        font-size: 16px;
+        color: #a9c3ca;
+        margin-bottom: 0px;
+    }
+
+    /* Header */
+    .dashboard-header {
+        background:
+            linear-gradient(
+                90deg,
+                rgba(3, 27, 37, 0.98),
+                rgba(3, 42, 43, 0.90),
+                rgba(10, 65, 51, 0.72)
+            );
+        border-radius: 14px;
+        padding: 24px 30px;
+        margin-bottom: 12px;
+        border: 1px solid #173b47;
+        min-height: 115px;
+    }
+
+    .header-left {
+        padding-top: 3px;
+    }
+
+    .leaf-symbol {
+        font-size: 42px;
+        color: #39c27a;
+        font-weight: 700;
+        float: left;
+        margin-right: 18px;
+        line-height: 1;
+    }
+
+    .header-tagline {
+        float: right;
+        text-align: right;
+        color: #c9e8dc;
+        font-size: 15px;
+        line-height: 1.5;
+        padding-top: 8px;
+    }
+
+    /* Navigation */
+    .navigation {
+        background-color: #0b2530;
+        border-bottom: 2px solid #1fb77a;
+        border-radius: 0 0 8px 8px;
+        padding: 8px 12px;
+        margin-bottom: 16px;
+    }
+
+    .nav-item {
+        display: inline-block;
+        padding: 11px 25px;
+        margin-right: 5px;
+        border-radius: 7px;
+        color: #c3dbe0;
+        font-size: 15px;
+        font-weight: 500;
+    }
+
+    .nav-active {
+        background-color: #17a878;
+        color: white;
+    }
+
+    /* Section cards */
+    .section-card {
+        background: #0b202b;
+        border: 1px solid #173d4b;
+        border-radius: 15px;
+        padding: 18px;
+        margin-bottom: 15px;
+    }
+
+    .section-title {
+        font-size: 22px;
+        font-weight: 700;
+        color: #f5f8fa;
+        margin-bottom: 2px;
+    }
+
+    .section-subtitle {
+        color: #9cb5bc;
+        font-size: 14px;
+        margin-bottom: 16px;
+    }
+
+    .section-number {
+        display: inline-flex;
+        width: 37px;
+        height: 37px;
+        border-radius: 50%;
+        align-items: center;
+        justify-content: center;
+        background: #18a875;
+        color: white;
+        font-size: 19px;
+        font-weight: 700;
+        margin-right: 10px;
+        vertical-align: middle;
+    }
+
+    /* Metric cards */
+    .metric-card {
+        border-radius: 9px;
+        padding: 15px 17px;
+        min-height: 100px;
+        border: 1px solid #24576a;
+        background: #102c39;
+    }
+
+    .metric-green {
+        border-color: #168e69;
+        background: #0c3733;
+    }
+
+    .metric-blue {
+        border-color: #236a91;
+        background: #102f42;
+    }
+
+    .metric-purple {
+        border-color: #7047a6;
+        background: #292044;
+    }
+
+    .metric-red {
+        border-color: #a63d4b;
+        background: #3a2029;
+    }
+
+    .metric-yellow {
+        border-color: #9d8a34;
+        background: #39351d;
+    }
+
+    .metric-label {
+        color: #b7d3da;
+        font-size: 14px;
+        margin-bottom: 7px;
+    }
+
+    .metric-value {
+        color: #ffffff;
+        font-size: 27px;
+        font-weight: 700;
+        line-height: 1.1;
+    }
+
+    .metric-unit {
+        color: #a9c1c8;
+        font-size: 12px;
+        margin-top: 4px;
+    }
+
+    /* Information box */
+    .info-box {
+        background: #12372f;
+        border: 1px solid #237b62;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-top: 10px;
+        color: #d8eee7;
+        font-size: 13px;
+    }
+
+    /* Warning box */
+    .warning-box {
+        background: #3a2029;
+        border: 1px solid #a83e4d;
+        border-radius: 8px;
+        padding: 15px;
+        color: #f5d6da;
+        min-height: 112px;
+    }
+
+    .warning-title {
+        color: #ff7d88;
+        font-weight: 700;
+        margin-bottom: 6px;
+        font-size: 15px;
+    }
+
+    /* Chart cards */
+    .chart-card {
+        background: #0e2935;
+        border: 1px solid #1d4a59;
+        border-radius: 10px;
+        padding: 10px;
+    }
+
+    /* Image analysis */
+    .image-card {
+        background: #0d2834;
+        border: 1px solid #1d4b5b;
+        border-radius: 10px;
+        padding: 14px;
+    }
+
+    .image-card-title {
+        color: #61c7ed;
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+
+    /* Class legend */
+    .legend-box {
+        background: #102d39;
+        border: 1px solid #285364;
+        border-radius: 9px;
+        padding: 16px;
+        height: 100%;
+    }
+
+    .legend-title {
+        color: #e5f0f3;
+        font-size: 15px;
+        font-weight: 700;
+        margin-bottom: 12px;
+    }
+
+    .legend-item {
+        margin-bottom: 12px;
+        color: #d3e0e3;
+        font-size: 13px;
+    }
+
+    .legend-color {
+        width: 17px;
+        height: 17px;
+        display: inline-block;
+        border-radius: 4px;
+        margin-right: 8px;
+        vertical-align: middle;
+    }
+
+    .paddy-color {
+        background: #ffff00;
+    }
+
+    .weed-color {
+        background: #ff2020;
+    }
+
+    .background-color {
+        background: #2e8b57;
+    }
+
+    /* Yield result */
+    .yield-result {
+        background: #0d3b2d;
+        border: 1px solid #25a46e;
+        border-radius: 10px;
+        padding: 22px;
+        text-align: center;
+        min-height: 150px;
+    }
+
+    .yield-label {
+        color: #c5e8d9;
+        font-size: 15px;
+        margin-bottom: 10px;
+    }
+
+    .yield-number {
+        color: #ffffff;
+        font-size: 31px;
+        font-weight: 700;
+    }
+
+    /* Field cards */
+    .field-card {
+        border-radius: 8px;
+        padding: 14px;
+        text-align: center;
+        min-height: 92px;
+        border: 1px solid #24596a;
+        background: #102c38;
+    }
+
+    .field-label {
+        font-size: 13px;
+        color: #abc6cd;
+        margin-bottom: 8px;
+    }
+
+    .field-value {
+        font-size: 22px;
+        font-weight: 700;
+        color: #ffffff;
+    }
+
+    /* Inputs */
+    div[data-testid="stNumberInput"] label {
+        color: #bcd3d9 !important;
+        font-size: 13px !important;
+    }
+
+    div[data-baseweb="input"] {
+        background-color: #102b37;
+        border-radius: 6px;
+    }
+
+    div[data-baseweb="input"] input {
+        color: white;
+    }
+
+    /* File uploader */
+    section[data-testid="stFileUploaderDropzone"] {
+        background: #102b37;
+        border: 1px dashed #557581;
+        border-radius: 8px;
+    }
+
+    /* Footer */
+    .footer {
+        border-top: 1px solid #244652;
+        margin-top: 20px;
+        padding-top: 18px;
+        color: #91aab1;
+        font-size: 13px;
+        text-align: center;
+    }
+
+    /* Hide default menu/footer */
+    #MainMenu {
+        visibility: hidden;
+    }
+
+    footer {
+        visibility: hidden;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# ============================================================
+# HEADER
+# ============================================================
+
+st.markdown(
+    """
+    <div class="dashboard-header">
+        <div class="header-left">
+            <div class="leaf-symbol">◆</div>
+            <div class="main-title">
+                Paddy Field Monitoring & Yield Prediction
+            </div>
+            <div class="main-subtitle">
+                AI-powered segmentation and yield estimation for smarter rice farming
+            </div>
+        </div>
+
+        <div class="header-tagline">
+            Monitor<br>
+            Analyse<br>
+            Grow
+        </div>
+    </div>
+
+    <div class="navigation">
+        <span class="nav-item nav-active">Home</span>
+        <span class="nav-item">Model Information</span>
+        <span class="nav-item">About</span>
+    </div>
+    """,
+    unsafe_allow_html=True
 )
 
 
@@ -32,6 +445,7 @@ st.write(
 class MobileNetV2UNet(nn.Module):
 
     def __init__(self):
+
         super().__init__()
 
         backbone = mobilenet_v2(weights=None)
@@ -39,43 +453,72 @@ class MobileNetV2UNet(nn.Module):
         self.encoder = backbone.features
 
         self.up1 = nn.ConvTranspose2d(
-            1280, 320, 2, stride=2
+            1280,
+            320,
+            2,
+            stride=2
         )
 
         self.conv1 = nn.Conv2d(
-            384, 320, 3, padding=1
+            384,
+            320,
+            3,
+            padding=1
         )
 
         self.up2 = nn.ConvTranspose2d(
-            320, 64, 2, stride=2
+            320,
+            64,
+            2,
+            stride=2
         )
 
         self.conv2 = nn.Conv2d(
-            96, 64, 3, padding=1
+            96,
+            64,
+            3,
+            padding=1
         )
 
         self.up3 = nn.ConvTranspose2d(
-            64, 32, 2, stride=2
+            64,
+            32,
+            2,
+            stride=2
         )
 
         self.conv3 = nn.Conv2d(
-            56, 32, 3, padding=1
+            56,
+            32,
+            3,
+            padding=1
         )
 
         self.up4 = nn.ConvTranspose2d(
-            32, 16, 2, stride=2
+            32,
+            16,
+            2,
+            stride=2
         )
 
         self.conv4 = nn.Conv2d(
-            40, 16, 3, padding=1
+            40,
+            16,
+            3,
+            padding=1
         )
 
         self.up5 = nn.ConvTranspose2d(
-            16, 16, 2, stride=2
+            16,
+            16,
+            2,
+            stride=2
         )
 
         self.final = nn.Conv2d(
-            16, 3, 1
+            16,
+            3,
+            1
         )
 
 
@@ -179,17 +622,12 @@ class MobileNetV2UNet(nn.Module):
 
 
 # ============================================================
-# DEVICE
+# LOAD SEGMENTATION MODEL
 # ============================================================
 
 device = torch.device(
     "cuda" if torch.cuda.is_available() else "cpu"
 )
-
-
-# ============================================================
-# LOAD SEGMENTATION MODEL
-# ============================================================
 
 model = MobileNetV2UNet().to(device)
 
@@ -197,11 +635,6 @@ model_path = "best_mobilenetv2_unet_improved_3class.pth"
 
 
 try:
-
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(
-            f"Model file not found: {model_path}"
-        )
 
     checkpoint = torch.load(
         model_path,
@@ -218,14 +651,10 @@ try:
 
     model.eval()
 
-    st.success(
-        "AI segmentation model loaded successfully."
-    )
-
 except Exception as e:
 
     st.error(
-        "The AI segmentation model could not be loaded."
+        "The segmentation model could not be loaded."
     )
 
     st.code(str(e))
@@ -234,76 +663,96 @@ except Exception as e:
 
 
 # ============================================================
-# MODEL PERFORMANCE
+# SECTION 1
 # ============================================================
 
-st.subheader("Segmentation Model Performance")
+st.markdown(
+    """
+    <div class="section-card">
 
-col1, col2, col3, col4, col5 = st.columns(5)
+        <div class="section-title">
+            <span class="section-number">1</span>
+            Segmentation Model Performance
+        </div>
 
-with col1:
-    st.metric(
-        "Paddy IoU",
-        "53.96%"
-    )
+        <div class="section-subtitle">
+            Performance metrics on the unseen test dataset
+        </div>
 
-with col2:
-    st.metric(
-        "Weed IoU",
-        "58.69%"
-    )
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-with col3:
-    st.metric(
-        "Background IoU",
-        "89.01%"
-    )
 
-with col4:
-    st.metric(
-        "Pixel Accuracy",
-        "89.85%"
-    )
+metric_cols = st.columns(5)
 
-with col5:
-    st.metric(
-        "Paddy Recall",
-        "86.90%"
-    )
+
+metrics = [
+    ("Paddy IoU", "53.96%", "metric-green"),
+    ("Weed IoU", "58.69%", "metric-red"),
+    ("Background IoU", "89.01%", "metric-blue"),
+    ("Pixel Accuracy", "89.85%", "metric-purple"),
+    ("Paddy Recall", "86.90%", "metric-yellow")
+]
+
+
+for col, metric in zip(metric_cols, metrics):
+
+    with col:
+
+        st.markdown(
+            f"""
+            <div class="metric-card {metric[2]}">
+                <div class="metric-label">
+                    {metric[0]}
+                </div>
+
+                <div class="metric-value">
+                    {metric[1]}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+
+st.markdown(
+    """
+    <div class="info-box">
+        <b>What this means:</b>
+        The model achieves 89.85% overall pixel accuracy,
+        with the strongest segmentation performance for background
+        and moderate IoU for paddy and weeds.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 
 # ============================================================
-# LOAD XGBOOST DATASET
+# LOAD XGBOOST DATA
 # ============================================================
-
-st.subheader("Yield Prediction Model")
 
 data_path = "rice_xgboost_training_data_combined.csv"
 
 
 try:
 
-    if not os.path.exists(data_path):
-        raise FileNotFoundError(
-            f"Dataset not found: {data_path}"
-        )
-
-    yield_data = pd.read_csv(data_path)
+    yield_data = pd.read_csv(
+        data_path
+    )
 
 except Exception as e:
 
     st.error(
-        "The XGBoost training dataset could not be loaded."
+        "The XGBoost dataset could not be loaded."
     )
 
     st.code(str(e))
 
     st.stop()
 
-
-# ============================================================
-# PREPARE XGBOOST DATA
-# ============================================================
 
 features = [
     "avg_height_cm",
@@ -313,10 +762,12 @@ features = [
 
 target = "actual_yield_mt_ha"
 
+
 required_columns = features + [
     target,
     "spatial_group"
 ]
+
 
 missing_columns = [
     column
@@ -325,13 +776,15 @@ missing_columns = [
 ]
 
 
-if len(missing_columns) > 0:
+if missing_columns:
 
     st.error(
-        "The yield dataset is missing required columns."
+        "Required columns are missing from the XGBoost dataset."
     )
 
-    st.write(missing_columns)
+    st.write(
+        missing_columns
+    )
 
     st.stop()
 
@@ -340,19 +793,24 @@ xgboost_data = yield_data[
     required_columns
 ].copy()
 
-
 xgboost_data = xgboost_data.dropna()
 
 
-X = xgboost_data[features]
+X = xgboost_data[
+    features
+]
 
-y = xgboost_data[target]
+y = xgboost_data[
+    target
+]
 
-groups = xgboost_data["spatial_group"]
+groups = xgboost_data[
+    "spatial_group"
+]
 
 
 # ============================================================
-# TRAIN XGBOOST MODEL
+# TRAIN XGBOOST
 # ============================================================
 
 yield_model = xgb.XGBRegressor(
@@ -373,19 +831,17 @@ yield_model.fit(
 
 
 # ============================================================
-# SPATIAL CROSS VALIDATION
+# SPATIAL VALIDATION
 # ============================================================
-
-unique_groups = groups.nunique()
 
 cv_results = []
 
+unique_groups = groups.nunique()
+
 if unique_groups >= 2:
 
-    n_splits = unique_groups
-
     group_kfold = GroupKFold(
-        n_splits=n_splits
+        n_splits=unique_groups
     )
 
     for train_index, test_index in group_kfold.split(
@@ -400,6 +856,7 @@ if unique_groups >= 2:
         y_train = y.iloc[train_index]
         y_test = y.iloc[test_index]
 
+
         cv_model = xgb.XGBRegressor(
             n_estimators=300,
             max_depth=4,
@@ -410,19 +867,23 @@ if unique_groups >= 2:
             random_state=42
         )
 
+
         cv_model.fit(
             X_train,
             y_train
         )
 
+
         predictions = cv_model.predict(
             X_test
         )
+
 
         fold_mae = mean_absolute_error(
             y_test,
             predictions
         )
+
 
         fold_rmse = np.sqrt(
             mean_squared_error(
@@ -431,13 +892,18 @@ if unique_groups >= 2:
             )
         )
 
+
         if len(y_test) > 1:
+
             fold_r2 = r2_score(
                 y_test,
                 predictions
             )
+
         else:
+
             fold_r2 = np.nan
+
 
         cv_results.append(
             {
@@ -453,108 +919,436 @@ cv_results_df = pd.DataFrame(
 )
 
 
-# ============================================================
-# DISPLAY XGBOOST DATASET INFORMATION
-# ============================================================
+mean_mae = cv_results_df["MAE"].mean()
 
-col1, col2, col3 = st.columns(3)
+mean_rmse = cv_results_df["RMSE"].mean()
 
-with col1:
-    st.metric(
-        "Training Observations",
-        len(xgboost_data)
-    )
+valid_r2 = cv_results_df["R2"].dropna()
 
-with col2:
-    st.metric(
-        "Spatial Groups",
-        unique_groups
-    )
-
-with col3:
-    st.metric(
-        "Yield Range",
-        f"{y.min():.2f} - {y.max():.2f} MT/ha"
-    )
-
-
-# ============================================================
-# DISPLAY SPATIAL VALIDATION
-# ============================================================
-
-st.subheader("Spatial Validation")
-
-if len(cv_results_df) > 0:
-
-    mean_mae = cv_results_df["MAE"].mean()
-
-    mean_rmse = cv_results_df["RMSE"].mean()
-
-    valid_r2 = cv_results_df["R2"].dropna()
-
-    if len(valid_r2) > 0:
-        mean_r2 = valid_r2.mean()
-    else:
-        mean_r2 = np.nan
-
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric(
-            "Mean MAE",
-            f"{mean_mae:.3f} MT/ha"
-        )
-
-    with col2:
-        st.metric(
-            "Mean RMSE",
-            f"{mean_rmse:.3f} MT/ha"
-        )
-
-    with col3:
-
-        if np.isnan(mean_r2):
-            st.metric(
-                "Mean R²",
-                "N/A"
-            )
-
-        else:
-            st.metric(
-                "Mean R²",
-                f"{mean_r2:.3f}"
-            )
-
-
-    st.write(
-        "Spatial validation uses the available locations as "
-        "groups so that observations from the same location "
-        "are not mixed between training and validation."
-    )
-
-
+if len(valid_r2) > 0:
+    mean_r2 = valid_r2.mean()
 else:
-
-    st.warning(
-        "Spatial validation could not be performed."
-    )
+    mean_r2 = np.nan
 
 
 # ============================================================
-# DISPLAY TRAINING LOCATIONS
+# SECTION 2
 # ============================================================
 
-st.write("Locations used for spatial validation:")
+st.markdown(
+    """
+    <div class="section-card">
 
-locations = sorted(
-    xgboost_data["spatial_group"]
-    .astype(str)
-    .unique()
+        <div class="section-title">
+            <span class="section-number">2</span>
+            Yield Prediction Model
+        </div>
+
+        <div class="section-subtitle">
+            XGBoost regression model trained using real field observations
+        </div>
+
+    </div>
+    """,
+    unsafe_allow_html=True
 )
 
-st.write(
-    ", ".join(locations)
+
+yield_cols = st.columns(4)
+
+
+with yield_cols[0]:
+
+    st.markdown(
+        f"""
+        <div class="metric-card metric-blue">
+            <div class="metric-label">
+                Training Observations
+            </div>
+
+            <div class="metric-value">
+                {len(xgboost_data)}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+with yield_cols[1]:
+
+    st.markdown(
+        f"""
+        <div class="metric-card metric-green">
+            <div class="metric-label">
+                Spatial Groups
+            </div>
+
+            <div class="metric-value">
+                {unique_groups}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+with yield_cols[2]:
+
+    st.markdown(
+        f"""
+        <div class="metric-card metric-yellow">
+            <div class="metric-label">
+                Observed Yield Range
+            </div>
+
+            <div class="metric-value">
+                {y.min():.2f} - {y.max():.2f}
+            </div>
+
+            <div class="metric-unit">
+                MT/ha
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+locations = sorted(
+    xgboost_data[
+        "spatial_group"
+    ].astype(str).unique()
+)
+
+
+with yield_cols[3]:
+
+    st.markdown(
+        f"""
+        <div class="metric-card metric-blue">
+            <div class="metric-label">
+                Locations
+            </div>
+
+            <div class="metric-value"
+                 style="font-size:16px; margin-top:12px;">
+                {" · ".join(locations)}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+# ============================================================
+# SECTION 3
+# ============================================================
+
+st.markdown(
+    """
+    <div class="section-card">
+
+        <div class="section-title">
+            <span class="section-number">3</span>
+            Spatial Validation Results
+        </div>
+
+        <div class="section-subtitle">
+            Leave-one-location-out cross-validation
+        </div>
+
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+
+validation_cols = st.columns(
+    [1, 1, 1, 1.8]
+)
+
+
+with validation_cols[0]:
+
+    st.markdown(
+        f"""
+        <div class="metric-card metric-blue">
+            <div class="metric-label">
+                Mean MAE
+            </div>
+
+            <div class="metric-value">
+                {mean_mae:.3f}
+            </div>
+
+            <div class="metric-unit">
+                MT/ha
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+with validation_cols[1]:
+
+    st.markdown(
+        f"""
+        <div class="metric-card metric-purple">
+            <div class="metric-label">
+                Mean RMSE
+            </div>
+
+            <div class="metric-value">
+                {mean_rmse:.3f}
+            </div>
+
+            <div class="metric-unit">
+                MT/ha
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+with validation_cols[2]:
+
+    r2_text = (
+        f"{mean_r2:.3f}"
+        if not np.isnan(mean_r2)
+        else "N/A"
+    )
+
+    st.markdown(
+        f"""
+        <div class="metric-card metric-red">
+            <div class="metric-label">
+                Mean R²
+            </div>
+
+            <div class="metric-value">
+                {r2_text}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+with validation_cols[3]:
+
+    st.markdown(
+        """
+        <div class="warning-box">
+
+            <div class="warning-title">
+                Important Note
+            </div>
+
+            The negative R² indicates that the model does not
+            generalize well to unseen locations in the current
+            spatial validation. This result should be interpreted
+            cautiously because the current dataset contains only
+            three spatial groups.
+
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+# ============================================================
+# CHARTS
+# ============================================================
+
+chart_col1, chart_col2 = st.columns(2)
+
+
+with chart_col1:
+
+    st.markdown(
+        """
+        <div class="chart-card">
+            <b style="font-size:17px;">Validation Metrics</b>
+            <br>
+            <span style="color:#9cb5bc;font-size:13px;">
+                Comparison of MAE and RMSE
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+    fig1, ax1 = plt.subplots(
+        figsize=(6, 3.5)
+    )
+
+    ax1.set_facecolor("#0e2935")
+    fig1.patch.set_facecolor("#0e2935")
+
+    bars = ax1.bar(
+        ["MAE", "RMSE"],
+        [mean_mae, mean_rmse],
+        width=0.55
+    )
+
+    ax1.set_ylabel(
+        "Error (MT/ha)",
+        color="white"
+    )
+
+    ax1.tick_params(
+        colors="white"
+    )
+
+    ax1.spines[
+        "bottom"
+    ].set_color(
+        "#66808a"
+    )
+
+    ax1.spines[
+        "left"
+    ].set_color(
+        "#66808a"
+    )
+
+    ax1.spines[
+        "top"
+    ].set_visible(False)
+
+    ax1.spines[
+        "right"
+    ].set_visible(False)
+
+    ax1.grid(
+        axis="y",
+        alpha=0.2
+    )
+
+    for bar, value in zip(
+        bars,
+        [mean_mae, mean_rmse]
+    ):
+
+        ax1.text(
+            bar.get_x()
+            + bar.get_width() / 2,
+            value + 0.03,
+            f"{value:.3f}",
+            ha="center",
+            color="white",
+            fontweight="bold"
+        )
+
+    st.pyplot(
+        fig1,
+        use_container_width=True
+    )
+
+    plt.close(fig1)
+
+
+with chart_col2:
+
+    st.markdown(
+        """
+        <div class="chart-card">
+            <b style="font-size:17px;">Observed Yield Distribution</b>
+            <br>
+            <span style="color:#9cb5bc;font-size:13px;">
+                Distribution of grain yield in the training dataset
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+    fig2, ax2 = plt.subplots(
+        figsize=(6, 3.5)
+    )
+
+    ax2.set_facecolor("#0e2935")
+    fig2.patch.set_facecolor("#0e2935")
+
+    ax2.hist(
+        y,
+        bins=14,
+        edgecolor="#071923"
+    )
+
+    ax2.set_xlabel(
+        "Grain Yield (MT/ha)",
+        color="white"
+    )
+
+    ax2.set_ylabel(
+        "Count",
+        color="white"
+    )
+
+    ax2.tick_params(
+        colors="white"
+    )
+
+    ax2.spines[
+        "bottom"
+    ].set_color(
+        "#66808a"
+    )
+
+    ax2.spines[
+        "left"
+    ].set_color(
+        "#66808a"
+    )
+
+    ax2.spines[
+        "top"
+    ].set_visible(False)
+
+    ax2.spines[
+        "right"
+    ].set_visible(False)
+
+    ax2.grid(
+        axis="y",
+        alpha=0.2
+    )
+
+    st.pyplot(
+        fig2,
+        use_container_width=True
+    )
+
+    plt.close(fig2)
+
+
+# ============================================================
+# SECTION 4
+# ============================================================
+
+st.markdown(
+    """
+    <div class="section-card">
+
+        <div class="section-title">
+            <span class="section-number">4</span>
+            Image Analysis & Yield Prediction
+        </div>
+
+        <div class="section-subtitle">
+            Upload a paddy field image to get segmentation results
+            and estimated yield
+        </div>
+
+    </div>
+    """,
+    unsafe_allow_html=True
 )
 
 
@@ -562,495 +1356,608 @@ st.write(
 # IMAGE UPLOAD
 # ============================================================
 
-st.subheader("Upload Paddy Field Image")
-
-uploaded_file = st.file_uploader(
-    "Upload a paddy field image",
-    type=[
-        "jpg",
-        "jpeg",
-        "png"
-    ]
+upload_col, results_col = st.columns(
+    [0.9, 2.5]
 )
 
 
+with upload_col:
+
+    st.markdown(
+        """
+        <div class="image-card">
+
+            <div class="image-card-title">
+                Upload Image
+            </div>
+
+            <p style="color:#bdd1d6;font-size:13px;">
+                Choose a paddy field image
+            </p>
+
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+    uploaded_file = st.file_uploader(
+        "Upload a paddy field image",
+        type=[
+            "jpg",
+            "jpeg",
+            "png"
+        ],
+        label_visibility="collapsed"
+    )
+
+
+    st.caption(
+        "Supported formats: JPG, JPEG, PNG"
+    )
+
+
+with results_col:
+
+    st.markdown(
+        """
+        <div class="image-card-title">
+            Segmentation Results
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+    if uploaded_file is None:
+
+        st.info(
+            "Upload an image to display the AI segmentation results."
+        )
+
+    else:
+
+        image = Image.open(
+            uploaded_file
+        ).convert("RGB")
+
+
+        input_image = image.resize(
+            (256, 256)
+        )
+
+
+        image_tensor = transforms.ToTensor()(
+            input_image
+        ).unsqueeze(0).to(device)
+
+
+        with torch.no_grad():
+
+            output = model(
+                image_tensor
+            )
+
+            prediction = torch.argmax(
+                output,
+                dim=1
+            )
+
+
+        pred_mask = prediction.squeeze().cpu().numpy()
+
+
+        mask_resized = Image.fromarray(
+            pred_mask.astype(np.uint8)
+        ).resize(
+            image.size,
+            resample=Image.Resampling.NEAREST
+        )
+
+
+        mask_array = np.array(
+            mask_resized
+        )
+
+
+        # Class mapping
+        paddy_mask = mask_array == 0
+        background_mask = mask_array == 1
+        weed_mask = mask_array == 2
+
+
+        # Percentages
+        paddy_percentage = (
+            paddy_mask.mean() * 100
+        )
+
+        weed_percentage = (
+            weed_mask.mean() * 100
+        )
+
+        background_percentage = (
+            background_mask.mean() * 100
+        )
+
+
+        # Pixel counts
+        paddy_pixels = int(
+            paddy_mask.sum()
+        )
+
+        weed_pixels = int(
+            weed_mask.sum()
+        )
+
+        background_pixels = int(
+            background_mask.sum()
+        )
+
+
+        # ====================================================
+        # AI PREDICTION IMAGE
+        # ====================================================
+
+        segmentation = np.zeros_like(
+            np.array(image)
+        )
+
+
+        # Paddy = Yellow
+        segmentation[
+            paddy_mask
+        ] = [
+            255,
+            255,
+            0
+        ]
+
+
+        # Weed = Red
+        segmentation[
+            weed_mask
+        ] = [
+            255,
+            30,
+            30
+        ]
+
+
+        # Background = Green
+        segmentation[
+            background_mask
+        ] = [
+            46,
+            139,
+            87
+        ]
+
+
+        # ====================================================
+        # OVERLAY
+        # ====================================================
+
+        original_array = np.array(
+            image
+        )
+
+
+        overlay = original_array.copy()
+
+        alpha = 0.45
+
+
+        overlay[
+            paddy_mask
+        ] = (
+            alpha
+            * segmentation[paddy_mask]
+            +
+            (1 - alpha)
+            * overlay[paddy_mask]
+        ).astype(np.uint8)
+
+
+        overlay[
+            weed_mask
+        ] = (
+            alpha
+            * segmentation[weed_mask]
+            +
+            (1 - alpha)
+            * overlay[weed_mask]
+        ).astype(np.uint8)
+
+
+        # Background gets a lighter green overlay
+        overlay[
+            background_mask
+        ] = (
+            0.20
+            * segmentation[background_mask]
+            +
+            0.80
+            * overlay[background_mask]
+        ).astype(np.uint8)
+
+
+        # ====================================================
+        # DISPLAY
+        # ====================================================
+
+        image_cols = st.columns(
+            [1, 1, 1, 0.7]
+        )
+
+
+        with image_cols[0]:
+
+            st.image(
+                image,
+                caption="Original Image",
+                use_container_width=True
+            )
+
+
+        with image_cols[1]:
+
+            st.image(
+                segmentation,
+                caption="AI Prediction",
+                use_container_width=True
+            )
+
+
+        with image_cols[2]:
+
+            st.image(
+                overlay,
+                caption="Overlay",
+                use_container_width=True
+            )
+
+
+        with image_cols[3]:
+
+            st.markdown(
+                """
+                <div class="legend-box">
+
+                    <div class="legend-title">
+                        Class Colors
+                    </div>
+
+                    <div class="legend-item">
+                        <span class="legend-color paddy-color"></span>
+                        Paddy
+                    </div>
+
+                    <div class="legend-item">
+                        <span class="legend-color weed-color"></span>
+                        Weed
+                    </div>
+
+                    <div class="legend-item">
+                        <span class="legend-color background-color"></span>
+                        Background
+                    </div>
+
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+
+# ============================================================
+# FIELD ANALYSIS AND YIELD
+# ============================================================
+
 if uploaded_file is not None:
 
-    image = Image.open(
-        uploaded_file
-    ).convert("RGB")
-
-
-    # ========================================================
-    # SEGMENTATION
-    # ========================================================
-
-    input_image = image.resize(
-        (256, 256)
-    )
-
-    image_tensor = transforms.ToTensor()(
-        input_image
-    ).unsqueeze(0).to(device)
-
-
-    with torch.no_grad():
-
-        output = model(
-            image_tensor
-        )
-
-        prediction = torch.argmax(
-            output,
-            dim=1
-        )
-
-
-    pred_mask = prediction.squeeze().cpu().numpy()
-
-
-    mask_resized = Image.fromarray(
-        pred_mask.astype(np.uint8)
-    ).resize(
-        image.size,
-        resample=Image.Resampling.NEAREST
+    st.markdown(
+        "<br>",
+        unsafe_allow_html=True
     )
 
 
-    mask_array = np.array(
-        mask_resized
+    field_col, input_col, result_col = st.columns(
+        [1.2, 1.7, 0.7]
     )
-
-
-    # ========================================================
-    # CLASS MASKS
-    # ========================================================
-
-    paddy_mask = mask_array == 0
-
-    background_mask = mask_array == 1
-
-    weed_mask = mask_array == 2
-
-
-    # ========================================================
-    # PERCENTAGES
-    # ========================================================
-
-    paddy_percentage = (
-        paddy_mask.mean() * 100
-    )
-
-    background_percentage = (
-        background_mask.mean() * 100
-    )
-
-    weed_percentage = (
-        weed_mask.mean() * 100
-    )
-
-
-    # ========================================================
-    # PIXEL COUNTS
-    # ========================================================
-
-    total_pixels = mask_array.size
-
-    paddy_pixels = int(
-        paddy_mask.sum()
-    )
-
-    weed_pixels = int(
-        weed_mask.sum()
-    )
-
-    background_pixels = int(
-        background_mask.sum()
-    )
-
-
-    # ========================================================
-    # SEGMENTATION IMAGE
-    # ========================================================
-
-    original_array = np.array(
-        image
-    )
-
-    segmentation = np.zeros_like(
-        original_array
-    )
-
-
-    segmentation[paddy_mask] = [
-        255,
-        255,
-        0
-    ]
-
-    segmentation[background_mask] = [
-        0,
-        0,
-        0
-    ]
-
-    segmentation[weed_mask] = [
-        255,
-        0,
-        0
-    ]
-
-
-    # ========================================================
-    # OVERLAY
-    # ========================================================
-
-    overlay = original_array.copy()
-
-    alpha = 0.45
-
-
-    overlay[paddy_mask] = (
-        alpha * segmentation[paddy_mask]
-        +
-        (1 - alpha) * overlay[paddy_mask]
-    ).astype(np.uint8)
-
-
-    overlay[weed_mask] = (
-        alpha * segmentation[weed_mask]
-        +
-        (1 - alpha) * overlay[weed_mask]
-    ).astype(np.uint8)
-
-
-    # ========================================================
-    # DISPLAY IMAGES
-    # ========================================================
-
-    st.subheader(
-        "AI Segmentation Results"
-    )
-
-
-    col1, col2, col3 = st.columns(3)
-
-
-    with col1:
-
-        st.image(
-            image,
-            caption="Original Image",
-            use_container_width=True
-        )
-
-
-    with col2:
-
-        st.image(
-            segmentation,
-            caption="AI Prediction",
-            use_container_width=True
-        )
-
-
-    with col3:
-
-        st.image(
-            overlay,
-            caption="Segmentation Overlay",
-            use_container_width=True
-        )
 
 
     # ========================================================
     # FIELD ANALYSIS
     # ========================================================
 
-    st.subheader(
-        "Field Analysis"
-    )
+    with field_col:
 
-
-    col1, col2, col3 = st.columns(3)
-
-
-    with col1:
-
-        st.metric(
-            "Paddy Area",
-            f"{paddy_percentage:.2f}%"
+        st.markdown(
+            """
+            <div class="image-card-title">
+                Field Analysis
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
 
-    with col2:
-
-        st.metric(
-            "Weed Area",
-            f"{weed_percentage:.2f}%"
-        )
+        f1, f2, f3 = st.columns(3)
 
 
-    with col3:
+        with f1:
 
-        st.metric(
-            "Background",
-            f"{background_percentage:.2f}%"
-        )
+            st.markdown(
+                f"""
+                <div class="field-card">
+                    <div class="field-label">
+                        Paddy Area
+                    </div>
 
-
-    # ========================================================
-    # PIXEL INFORMATION
-    # ========================================================
-
-    st.subheader(
-        "Segmentation Pixel Information"
-    )
-
-
-    col1, col2, col3 = st.columns(3)
+                    <div class="field-value">
+                        {paddy_percentage:.2f}%
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
 
-    with col1:
+        with f2:
 
-        st.metric(
-            "Paddy Pixels",
-            f"{paddy_pixels:,}"
-        )
+            st.markdown(
+                f"""
+                <div class="field-card">
+                    <div class="field-label">
+                        Weed Area
+                    </div>
 
-
-    with col2:
-
-        st.metric(
-            "Weed Pixels",
-            f"{weed_pixels:,}"
-        )
-
-
-    with col3:
-
-        st.metric(
-            "Background Pixels",
-            f"{background_pixels:,}"
-        )
+                    <div class="field-value">
+                        {weed_percentage:.2f}%
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
 
-    # ========================================================
-    # PHYSICAL AREA
-    # ========================================================
+        with f3:
 
-    st.subheader(
-        "Physical Paddy Area"
-    )
+            st.markdown(
+                f"""
+                <div class="field-card">
+                    <div class="field-label">
+                        Background
+                    </div>
 
-    st.write(
-        "Enter the Ground Sampling Distance (GSD) of the image "
-        "to calculate physical paddy area. Do not enter an "
-        "estimated value unless the image scale is known."
-    )
-
-
-    gsd_cm = st.number_input(
-        "GSD (cm per pixel)",
-        min_value=0.01,
-        max_value=100.0,
-        value=1.0,
-        step=0.01
-    )
-
-
-    gsd_m = gsd_cm / 100.0
-
-
-    pixel_area_m2 = (
-        gsd_m ** 2
-    )
-
-
-    paddy_area_m2 = (
-        paddy_pixels * pixel_area_m2
-    )
-
-
-    st.metric(
-        "Estimated Paddy Area",
-        f"{paddy_area_m2:.2f} m²"
-    )
+                    <div class="field-value">
+                        {background_percentage:.2f}%
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
 
     # ========================================================
     # YIELD INPUTS
     # ========================================================
 
-    st.subheader(
-        "Yield Prediction Inputs"
-    )
+    with input_col:
 
-    st.write(
-        "The current yield dataset provides crop height, "
-        "rainfall, and temperature. These three variables "
-        "are used by the current XGBoost prototype."
-    )
-
-
-    mean_height = float(
-        xgboost_data["avg_height_cm"].mean()
-    )
-
-    mean_rainfall = float(
-        xgboost_data["rainfall_mm"].mean()
-    )
-
-    mean_temperature = float(
-        xgboost_data["avg_temp_c"].mean()
-    )
-
-
-    col1, col2, col3 = st.columns(3)
-
-
-    with col1:
-
-        height_input = st.number_input(
-            "Average Crop Height (cm)",
-            min_value=0.0,
-            max_value=300.0,
-            value=round(
-                mean_height,
-                2
-            ),
-            step=0.1
+        st.markdown(
+            """
+            <div class="image-card-title">
+                Yield Prediction Inputs
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
 
-    with col2:
-
-        rainfall_input = st.number_input(
-            "Rainfall (mm)",
-            min_value=0.0,
-            max_value=5000.0,
-            value=round(
-                mean_rainfall,
-                2
-            ),
-            step=1.0
+        default_height = float(
+            xgboost_data[
+                "avg_height_cm"
+            ].mean()
         )
 
 
-    with col3:
-
-        temperature_input = st.number_input(
-            "Average Temperature (°C)",
-            min_value=0.0,
-            max_value=50.0,
-            value=round(
-                mean_temperature,
-                2
-            ),
-            step=0.1
+        default_rainfall = float(
+            xgboost_data[
+                "rainfall_mm"
+            ].mean()
         )
 
 
+        default_temperature = float(
+            xgboost_data[
+                "avg_temp_c"
+            ].mean()
+        )
+
+
+        input1, input2, input3 = st.columns(3)
+
+
+        with input1:
+
+            height_input = st.number_input(
+                "Average Crop Height (cm)",
+                min_value=0.0,
+                max_value=300.0,
+                value=round(
+                    default_height,
+                    1
+                ),
+                step=0.1
+            )
+
+
+        with input2:
+
+            rainfall_input = st.number_input(
+                "Rainfall (mm)",
+                min_value=0.0,
+                max_value=5000.0,
+                value=round(
+                    default_rainfall,
+                    1
+                ),
+                step=1.0
+            )
+
+
+        with input3:
+
+            temperature_input = st.number_input(
+                "Average Temperature (°C)",
+                min_value=0.0,
+                max_value=50.0,
+                value=round(
+                    default_temperature,
+                    1
+                ),
+                step=0.1
+            )
+
+
     # ========================================================
-    # XGBOOST PREDICTION
+    # YIELD PREDICTION
     # ========================================================
 
-    prediction_input = pd.DataFrame(
-        {
-            "avg_height_cm": [
-                height_input
-            ],
-            "rainfall_mm": [
-                rainfall_input
-            ],
-            "avg_temp_c": [
-                temperature_input
-            ]
-        }
-    )
+    with result_col:
+
+        prediction_input = pd.DataFrame(
+            {
+                "avg_height_cm": [
+                    height_input
+                ],
+
+                "rainfall_mm": [
+                    rainfall_input
+                ],
+
+                "avg_temp_c": [
+                    temperature_input
+                ]
+            }
+        )
 
 
-    predicted_yield = yield_model.predict(
-        prediction_input
-    )[0]
+        predicted_yield = yield_model.predict(
+            prediction_input
+        )[0]
 
 
-    # ========================================================
-    # YIELD RESULT
-    # ========================================================
-
-    st.subheader(
-        "Estimated Yield"
-    )
+        predicted_yield = max(
+            0,
+            float(predicted_yield)
+        )
 
 
-    st.metric(
-        "Predicted Yield",
-        f"{predicted_yield:.2f} MT/ha"
-    )
+        st.markdown(
+            f"""
+            <div class="yield-result">
 
+                <div class="yield-label">
+                    Estimated Yield
+                </div>
 
-    # ========================================================
-    # FINAL SUMMARY
-    # ========================================================
+                <div class="yield-number">
+                    {predicted_yield:.2f}
+                </div>
 
-    st.subheader(
-        "Field Monitoring Summary"
-    )
+                <div style="
+                    color:#bfe4d4;
+                    font-size:14px;
+                    margin-top:4px;
+                ">
+                    MT/ha
+                </div>
 
-
-    st.write(
-        f"""
-The AI segmentation model classified the uploaded image
-into Paddy, Weed, and Background.
-
-Paddy coverage: {paddy_percentage:.2f}%
-
-Weed coverage: {weed_percentage:.2f}%
-
-Background coverage: {background_percentage:.2f}%
-
-Paddy pixels: {paddy_pixels:,}
-
-Estimated physical paddy area: {paddy_area_m2:.2f} m²
-
-Average crop height used for yield prediction:
-{height_input:.2f} cm
-
-Rainfall used for yield prediction:
-{rainfall_input:.2f} mm
-
-Average temperature used for yield prediction:
-{temperature_input:.2f} °C
-
-Estimated yield:
-{predicted_yield:.2f} MT/ha
-"""
-    )
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 
 # ============================================================
-# PROJECT LIMITATION
+# PROJECT INFORMATION
 # ============================================================
 
-st.subheader(
-    "Current Model Scope"
+st.markdown(
+    """
+    <div class="section-card">
+
+        <div class="section-title">
+            Model Information
+        </div>
+
+        <div class="section-subtitle">
+            Current system configuration
+        </div>
+
+        <div style="
+            color:#b7cbd0;
+            font-size:14px;
+            line-height:1.7;
+        ">
+
+        <b>Segmentation:</b>
+        MobileNetV2-U-Net semantic segmentation model.
+
+        <br>
+
+        <b>Segmentation Classes:</b>
+        Paddy, Weed, Background.
+
+        <br>
+
+        <b>Yield Model:</b>
+        XGBoost regression.
+
+        <br>
+
+        <b>Yield Prediction Features:</b>
+        Average crop height, rainfall, and average temperature.
+
+        <br>
+
+        <b>Training Dataset:</b>
+        96 observations from three spatial groups:
+        Akola, Jabalpur, and Faizabad.
+
+        <br>
+
+        <b>Spatial Validation:</b>
+        Leave-one-location-out cross-validation.
+
+        <br>
+
+        <b>Important Limitation:</b>
+        Paddy area and weed density are calculated from the
+        segmentation model but are not currently used as
+        XGBoost predictors because there are no paired yield
+        observations containing these two features.
+
+        </div>
+
+    </div>
+    """,
+    unsafe_allow_html=True
 )
 
-st.write(
-    "The current XGBoost prototype uses crop height, rainfall, "
-    "and average temperature because these are the variables "
-    "available with the current yield dataset. Paddy area and "
-    "weed density are calculated by the segmentation system, "
-    "but they are not yet available as paired training features "
-    "for the yield dataset. Therefore, they are not currently "
-    "used as XGBoost predictors."
-)
 
-st.write(
-    "The physical paddy area calculation requires a known GSD. "
-    "The current ground-based image dataset does not provide a "
-    "reliable GSD value, so the displayed area should only be "
-    "treated as physically meaningful when the user supplies "
-    "the actual image scale."
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.markdown(
+    """
+    <div class="footer">
+        Paddy Field Monitoring Dashboard
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        AI for Sustainable Rice Farming
+    </div>
+    """,
+    unsafe_allow_html=True
 )
