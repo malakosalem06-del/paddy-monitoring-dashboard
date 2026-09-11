@@ -6,3 +6,4 @@ torchvision
 streamlit
 opencv-python
 scikit-learn
+xgboost
